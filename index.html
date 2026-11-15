@@ -8,6 +8,7 @@
 <meta name="theme-color" content="#f5f1e8" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0e1312" media="(prefers-color-scheme: dark)">
 <link rel="manifest" href="manifest.webmanifest">
+<link rel="preload" href="fonts/fraunces-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon.svg">
 <style>
@@ -270,6 +271,112 @@ input:focus, select:focus, button:focus-visible { outline: 2px solid var(--brand
   .mac { padding: 10px 8px; }
   .brand img { display: none; }
 }
+/* ---------- Cinematic layer: fonts, intro, entrance motion ---------- */
+@font-face {
+  font-family: "Fraunces"; font-style: normal; font-weight: 600 800; font-display: swap;
+  src: url("fonts/fraunces-latin.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Jakarta"; font-style: normal; font-weight: 400 800; font-display: swap;
+  src: url("fonts/jakarta-latin.woff2") format("woff2");
+}
+body { font-family: "Jakarta", system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", sans-serif; }
+.hello, .ring .big, .pill b, .mac .v, .brand, .hero h1, .card h2, .meal-head h3, .qty output, .nutri b, .wsum b,
+.pick-head h3, .sheet-head .row h2, .sp-title {
+  font-family: "Fraunces", Georgia, "Times New Roman", serif;
+  font-variant-numeric: lining-nums tabular-nums;
+  font-optical-sizing: auto;
+}
+.hello { font-size: 23px; font-weight: 700; letter-spacing: -.01em; white-space: nowrap; }
+.ring .big { font-size: 40px; font-weight: 700; letter-spacing: -.02em; }
+.card h2 { font-weight: 700; font-size: 18px; }
+.meal-head h3 { font-weight: 700; font-size: 18px; }
+
+/* Hero: slow drifting light */
+.hero-card {
+  background:
+    radial-gradient(60% 70% at 85% 10%, color-mix(in srgb, var(--hero-3) 60%, transparent) 0%, transparent 60%),
+    radial-gradient(70% 80% at 0% 100%, rgba(255,255,255,.10) 0%, transparent 60%),
+    linear-gradient(135deg, var(--hero-1) 0%, var(--hero-2) 55%, var(--hero-1) 100%);
+  background-size: 200% 200%, 160% 160%, 220% 220%;
+  animation: aurora 16s ease-in-out infinite alternate;
+}
+@keyframes aurora {
+  0% { background-position: 0% 0%, 0% 100%, 0% 50%; }
+  100% { background-position: 100% 40%, 60% 0%, 100% 50%; }
+}
+.hero-card::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 2;
+  background: linear-gradient(105deg, transparent 35%, rgba(255,255,255,.28) 50%, transparent 65%);
+  transform: translateX(-120%);
+}
+.anim .hero-card::before { animation: sweep 1.6s cubic-bezier(.2,.8,.2,1) .35s both; }
+@keyframes sweep { to { transform: translateX(120%); } }
+
+/* Entrance: cards rise in one after another (only on open / tab change, never on every tap) */
+.anim > * { animation: rise .7s cubic-bezier(.2,.8,.2,1) both; }
+.anim > *:nth-child(1) { animation-delay: .00s; }
+.anim > *:nth-child(2) { animation-delay: .08s; }
+.anim > *:nth-child(3) { animation-delay: .16s; }
+.anim > *:nth-child(4) { animation-delay: .24s; }
+.anim > *:nth-child(5) { animation-delay: .32s; }
+.anim > *:nth-child(6) { animation-delay: .40s; }
+.anim > *:nth-child(7) { animation-delay: .48s; }
+.anim > *:nth-child(n+8) { animation-delay: .56s; }
+@keyframes rise {
+  from { opacity: 0; transform: translateY(26px) scale(.98); filter: blur(6px); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+.anim .hello { animation: title-in .9s cubic-bezier(.2,.8,.2,1) .15s both; }
+@keyframes title-in {
+  from { opacity: 0; letter-spacing: .12em; filter: blur(8px); }
+  to { opacity: 1; letter-spacing: -.01em; filter: none; }
+}
+.anim .bar i { animation: grow 1.1s cubic-bezier(.2,.8,.2,1) .45s both; }
+@keyframes grow { from { width: 0; } }
+.anim .drop { animation: pop .5s cubic-bezier(.3,1.6,.5,1) both; }
+.anim .drop:nth-child(1) { animation-delay: .5s; } .anim .drop:nth-child(2) { animation-delay: .56s; }
+.anim .drop:nth-child(3) { animation-delay: .62s; } .anim .drop:nth-child(4) { animation-delay: .68s; }
+.anim .drop:nth-child(5) { animation-delay: .74s; } .anim .drop:nth-child(6) { animation-delay: .8s; }
+.anim .drop:nth-child(7) { animation-delay: .86s; } .anim .drop:nth-child(n+8) { animation-delay: .92s; }
+@keyframes pop { from { transform: rotate(-45deg) scale(0); opacity: 0; } to { transform: rotate(-45deg) scale(1); } }
+.drop.on { animation: none; }
+.anim .meal-ic { animation: float-in .8s cubic-bezier(.3,1.4,.5,1) .3s both; }
+@keyframes float-in { from { transform: scale(.4) rotate(-12deg); opacity: 0; } }
+
+/* Intro screen */
+#splash {
+  position: fixed; inset: 0; z-index: 100; display: grid; place-content: center; justify-items: center; text-align: center;
+  color: #fff; cursor: pointer; overflow: hidden;
+  background: radial-gradient(80% 60% at 50% 35%, #1b9b7a 0%, #0c4f41 55%, #062b24 100%);
+  transition: opacity .55s ease, transform .55s ease, filter .55s ease;
+}
+#splash.out { opacity: 0; transform: scale(1.08); filter: blur(10px); pointer-events: none; }
+.sp-glow {
+  position: absolute; width: 520px; height: 520px; border-radius: 50%; left: 50%; top: 38%; transform: translate(-50%, -50%);
+  background: radial-gradient(circle, rgba(242,165,22,.45) 0%, rgba(242,165,22,0) 60%);
+  animation: breathe 2.4s ease-in-out infinite alternate;
+}
+@keyframes breathe { from { opacity: .55; transform: translate(-50%, -50%) scale(.85); } to { opacity: 1; transform: translate(-50%, -50%) scale(1.05); } }
+.sp-logo {
+  width: 96px; height: 96px; border-radius: 28px; position: relative;
+  box-shadow: 0 20px 60px rgba(0,0,0,.35), 0 0 0 1px rgba(255,255,255,.15);
+  animation: logo-in .9s cubic-bezier(.3,1.5,.5,1) both;
+}
+@keyframes logo-in { from { opacity: 0; transform: scale(.3) rotate(-25deg); } to { opacity: 1; transform: none; } }
+.sp-title { position: relative; margin: 22px 0 8px; font-size: 34px; font-weight: 800; letter-spacing: -.01em; line-height: 1.1; padding: 0 16px; }
+.sp-title .ch { display: inline-block; animation: letter .75s cubic-bezier(.2,.8,.2,1) both; animation-delay: calc(.35s + var(--i) * 32ms); }
+@keyframes letter { from { opacity: 0; transform: translateY(28px) rotate(6deg); filter: blur(8px); } to { opacity: 1; transform: none; filter: none; } }
+.sp-tag { position: relative; margin: 0; font-size: 15px; opacity: 0; letter-spacing: .18em; text-transform: uppercase; animation: tag-in .8s ease 1.15s forwards; }
+@keyframes tag-in { from { opacity: 0; letter-spacing: .5em; } to { opacity: .85; letter-spacing: .18em; } }
+.sp-line { position: relative; width: 0; height: 2px; margin: 16px auto 0; background: linear-gradient(90deg, transparent, #f2a516, transparent); animation: line 1s ease 1.1s forwards; }
+@keyframes line { to { width: 160px; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-card { animation: none; }
+  #splash { display: none; }
+}
+
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 </style>
 </head>
@@ -455,7 +562,44 @@ window.addEventListener("error", function (e) {
   var app = document.getElementById("app");
   var tabs = document.getElementById("tabs");
 
-  function render() {
+  var reduceMotion = false;
+  try { reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) { /* older browser */ }
+
+  // anim=true only when the app opens, the tab changes or the day changes; plain taps re-render without motion.
+  function render(anim) {
+    var play = !!anim && !reduceMotion;
+    app.classList.remove("anim");
+    if (play) { void app.offsetWidth; app.classList.add("anim"); }
+    renderView();
+    if (play) cinematic();
+  }
+
+  function cinematic() {
+    var prog = app.querySelector(".ring .prog");
+    if (prog) {
+      var full = prog.getAttribute("stroke-dasharray"), target = prog.getAttribute("stroke-dashoffset");
+      prog.style.transition = "none";
+      prog.style.strokeDashoffset = full;
+      prog.getBoundingClientRect();
+      requestAnimationFrame(function () {
+        prog.style.transition = "stroke-dashoffset 1.5s cubic-bezier(.2,.8,.2,1) .3s";
+        prog.style.strokeDashoffset = target;
+      });
+    }
+    var nodes = app.querySelectorAll("[data-count]");
+    if (!nodes.length) return;
+    var t0 = null, dur = 1300;
+    function step(ts) {
+      if (t0 === null) t0 = ts;
+      var k = Math.min((ts - t0 - 250) / dur, 1);
+      var e = k <= 0 ? 0 : 1 - Math.pow(1 - k, 3);
+      for (var i = 0; i < nodes.length; i++) nodes[i].textContent = Math.round(Number(nodes[i].getAttribute("data-count")) * e);
+      if (k < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+
+  function renderView() {
     if (!state.profile) { tabs.hidden = true; app.innerHTML = onboardingView(); return; }
     tabs.hidden = false;
     tabs.querySelectorAll("button").forEach(function (b) {
@@ -491,16 +635,16 @@ window.addEventListener("error", function (e) {
     var left = r0(target - consumed);
     return '<div class="ring"><svg width="148" height="148" viewBox="0 0 148 148" aria-hidden="true">' +
       '<circle cx="74" cy="74" r="' + r + '" fill="none" stroke="rgba(255,255,255,.22)" stroke-width="13"/>' +
-      '<circle cx="74" cy="74" r="' + r + '" fill="none" stroke="' + (over ? "#ffb3a7" : "#ffffff") + '" stroke-width="13" stroke-linecap="round" ' +
+      '<circle class="prog" cx="74" cy="74" r="' + r + '" fill="none" stroke="' + (over ? "#ffb3a7" : "#ffffff") + '" stroke-width="13" stroke-linecap="round" ' +
       'stroke-dasharray="' + c.toFixed(1) + '" stroke-dashoffset="' + (c * (1 - pct)).toFixed(1) + '" style="transition:stroke-dashoffset .5s ease"/></svg>' +
-      '<div class="center"><div class="big">' + Math.abs(left) + '</div>' +
+      '<div class="center"><div class="big" data-count="' + Math.abs(left) + '">' + Math.abs(left) + '</div>' +
       '<div class="lbl">' + (over ? "kcal over" : "kcal left") + '</div></div></div>';
   }
 
   function macro(label, val, target, color) {
     var pct = target > 0 ? Math.min(val / target * 100, 100) : 0;
     return '<div class="mac"><div class="t"><i style="background:' + color + '"></i>' + label + '</div>' +
-      '<div class="v">' + r0(val) + '<small> / ' + target + 'g</small></div>' +
+      '<div class="v"><span data-count="' + r0(val) + '">' + r0(val) + '</span><small> / ' + target + 'g</small></div>' +
       '<div class="bar"><i style="width:' + pct.toFixed(1) + '%;background:' + color + '"></i></div></div>';
   }
 
@@ -535,8 +679,8 @@ window.addEventListener("error", function (e) {
       '<button data-act="next-day" aria-label="Next day"' + (ui.date >= todayKey() ? " disabled" : "") + '>›</button></div></div>' +
       '<div class="hero-main">' + ring(tot.kcal, t.kcal) +
       '<div class="hero-stats">' +
-      '<div class="pill"><span><span class="ic">🍽️</span> Eaten</span><b>' + r0(tot.kcal) + '</b></div>' +
-      '<div class="pill"><span><span class="ic">🎯</span> Target</span><b>' + t.kcal + '</b></div>' +
+      '<div class="pill"><span><span class="ic">🍽️</span> Eaten</span><b data-count="' + r0(tot.kcal) + '">' + r0(tot.kcal) + '</b></div>' +
+      '<div class="pill"><span><span class="ic">🎯</span> Target</span><b data-count="' + t.kcal + '">' + t.kcal + '</b></div>' +
       '<div class="pill"><span><span class="ic">💧</span> Water</span><b>' + d.water + '/' + waterGoal + '</b></div>' +
       '</div></div></section>' +
       '<section class="card"><h2>Macros <small>today’s target</small></h2><div class="macros">' +
@@ -798,7 +942,7 @@ window.addEventListener("error", function (e) {
   document.addEventListener("click", function (ev) {
     var el = ev.target.closest("[data-act],[data-tab],[data-val]");
     if (!el) return;
-    if (el.dataset.tab) { ui.tab = el.dataset.tab; render(); window.scrollTo(0, 0); return; }
+    if (el.dataset.tab) { var changed = ui.tab !== el.dataset.tab; ui.tab = el.dataset.tab; render(changed); window.scrollTo(0, 0); return; }
     if (el.dataset.val !== undefined && el.parentElement.dataset.seg) {
       var seg = el.parentElement;
       seg.querySelectorAll("button").forEach(function (b) { b.setAttribute("aria-pressed", String(b === el)); });
@@ -812,8 +956,8 @@ window.addEventListener("error", function (e) {
     var act = el.dataset.act;
     var s = ui.sheet;
     switch (act) {
-      case "prev-day": ui.date = shiftKey(ui.date, -1); render(); break;
-      case "next-day": if (ui.date < todayKey()) { ui.date = shiftKey(ui.date, 1); render(); } break;
+      case "prev-day": ui.date = shiftKey(ui.date, -1); render(true); break;
+      case "next-day": if (ui.date < todayKey()) { ui.date = shiftKey(ui.date, 1); render(true); } break;
       case "water": {
         var d = day(ui.date, true);
         d.water = Math.max(0, Math.min(30, d.water + Number(el.dataset.d)));
@@ -960,7 +1104,35 @@ window.addEventListener("error", function (e) {
     return false;
   };
 
-  render();
+  // Intro: once per session, about 1.8 s, tap to skip. The page is drawn underneath and animates in as it fades.
+  function intro() {
+    var seen = false;
+    try { seen = sessionStorage.getItem("indi-intro") === "1"; sessionStorage.setItem("indi-intro", "1"); } catch (e) { /* no session storage */ }
+    if (seen || reduceMotion || /[?&]nointro\b/.test(location.search)) { render(true); return; }
+    var name = "Indi Calorie Counter", letters = "";
+    for (var i = 0; i < name.length; i++) {
+      letters += name[i] === " " ? " " : '<span class="ch" style="--i:' + i + '">' + name[i] + '</span>';
+    }
+    var sp = document.createElement("div");
+    sp.id = "splash";
+    sp.setAttribute("aria-hidden", "true");
+    sp.innerHTML = '<div class="sp-glow"></div><img class="sp-logo" src="icon.svg" alt="">' +
+      '<h1 class="sp-title">' + letters + '</h1><p class="sp-tag">Eat smart · Live strong</p><div class="sp-line"></div>';
+    document.body.appendChild(sp);
+    render(false);
+    var done = false;
+    function finish() {
+      if (done) return;
+      done = true;
+      sp.classList.add("out");
+      render(true);
+      setTimeout(function () { if (sp.parentNode) sp.parentNode.removeChild(sp); }, 650);
+    }
+    sp.addEventListener("click", finish);
+    setTimeout(finish, 2100);
+  }
+
+  intro();
   checkFoodUpdate();
   window.addEventListener("online", checkFoodUpdate);
 

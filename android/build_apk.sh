@@ -18,6 +18,7 @@ mkdir -p "$OUT/compiled" "$OUT/gen" "$OUT/classes" "$OUT/assets/www"
 
 # 1. The web app goes in as assets (service worker and web manifest are not needed inside the app).
 cp "$HERE/../index.html" "$HERE/../foods.js" "$HERE/../icon.svg" "$OUT/assets/www/"
+cp -r "$HERE/../fonts" "$OUT/assets/www/fonts"
 
 # 2. Resources and manifest.
 "$BT/aapt2" compile --dir "$HERE/res" -o "$OUT/compiled/res.zip"
