@@ -3,24 +3,33 @@ package com.indicaloriecounter.app;
 import android.app.Activity;
 import android.content.ContentValues;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.res.Configuration;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.MediaStore;
+import android.util.Log;
+import android.util.TypedValue;
+import android.view.Gravity;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.webkit.JavascriptInterface;
+import android.webkit.RenderProcessGoneDetail;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.Button;
 import android.widget.FrameLayout;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
+import android.widget.TextView;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -42,10 +51,26 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        installCrashRecorder();
+        SharedPreferences crash = getSharedPreferences("crash", MODE_PRIVATE);
+        String last = crash.getString("last", null);
+        if (last != null) {
+            crash.edit().remove("last").commit();
+            showProblem("Pichhli baar app band ho gayi thi", last);
+            return;
+        }
+        try {
+            start(savedInstanceState);
+        } catch (Throwable t) {
+            showProblem("App khul nahi paayi", Log.getStackTraceString(t));
+        }
+    }
+
+    private void start(Bundle savedInstanceState) {
         boolean night = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)
                 == Configuration.UI_MODE_NIGHT_YES;
         int bg = getResources().getColor(R.color.bg, getTheme());
-        styleSystemBars(night);
+        try { styleSystemBars(night); } catch (Throwable ignored) { /* cosmetic only */ }
 
         FrameLayout root = new FrameLayout(this);
         root.setBackgroundColor(bg);
@@ -78,6 +103,14 @@ public class MainActivity extends Activity {
         web.addJavascriptInterface(new Bridge(), "IndiAndroid");
 
         web.setWebViewClient(new WebViewClient() {
+            @Override
+            public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail detail) {
+                // The page engine crashed: rebuild the screen instead of letting the whole app close.
+                if (web != null) { web.destroy(); web = null; }
+                recreate();
+                return true;
+            }
+
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 Uri uri = request.getUrl();
@@ -114,6 +147,65 @@ public class MainActivity extends Activity {
         else web.loadUrl(START_URL);
     }
 
+    /** Saves the error of an unexpected crash so the next launch can show it instead of closing silently. */
+    private void installCrashRecorder() {
+        final Thread.UncaughtExceptionHandler previous = Thread.getDefaultUncaughtExceptionHandler();
+        Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
+            @Override
+            public void uncaughtException(Thread thread, Throwable error) {
+                try {
+                    getSharedPreferences("crash", MODE_PRIVATE).edit()
+                            .putString("last", Log.getStackTraceString(error)).commit();
+                } catch (Throwable ignored) { }
+                if (previous != null) previous.uncaughtException(thread, error);
+            }
+        });
+    }
+
+    /** A plain native screen (no WebView) that explains the problem and shows the error text. */
+    private void showProblem(String title, String details) {
+        boolean noWebView = details != null && (details.contains("WebView") || details.contains("webview")
+                || details.contains("MissingWebViewPackage"));
+        int pad = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 20, getResources().getDisplayMetrics());
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(pad, pad * 2, pad, pad);
+
+        TextView head = new TextView(this);
+        head.setText(title);
+        head.setTextSize(22);
+        head.setTypeface(null, android.graphics.Typeface.BOLD);
+        box.addView(head);
+
+        TextView help = new TextView(this);
+        help.setTextSize(16);
+        help.setPadding(0, pad / 2, 0, pad / 2);
+        help.setText(noWebView
+                ? "Phone mein \"Android System WebView\" nahi mila ya band hai. Play Store kholo, \"Android System WebView\" aur \"Chrome\" search karke Update / Enable karo, phir app dobara kholo."
+                : "Is screen ka screenshot le kar bhejo, isse problem theek ho jaayegi. Aapka saved data surakshit hai.");
+        box.addView(help);
+
+        Button retry = new Button(this);
+        retry.setText("Dobara kholo");
+        retry.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) { recreate(); }
+        });
+        box.addView(retry);
+
+        TextView err = new TextView(this);
+        err.setTextSize(12);
+        err.setTextIsSelectable(true);
+        err.setPadding(0, pad / 2, 0, 0);
+        String info = "Android " + Build.VERSION.RELEASE + " (API " + Build.VERSION.SDK_INT + "), " + Build.MANUFACTURER + " " + Build.MODEL + "\n\n";
+        err.setText(info + (details == null ? "" : (details.length() > 3000 ? details.substring(0, 3000) : details)));
+        box.addView(err);
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(box);
+        setContentView(scroll);
+    }
+
     private void styleSystemBars(boolean night) {
         Window w = getWindow();
         if (Build.VERSION.SDK_INT >= 30) {
@@ -144,6 +236,7 @@ public class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
+        if (web == null) { finish(); return; }
         // Let the page close its food sheet or return to Today first; close the app only when it says so.
         web.evaluateJavascript("window.__indiBack ? window.__indiBack() : false", new ValueCallback<String>() {
             @Override
@@ -156,19 +249,19 @@ public class MainActivity extends Activity {
     @Override
     protected void onSaveInstanceState(Bundle outState) {
         super.onSaveInstanceState(outState);
-        web.saveState(outState);
+        if (web != null) web.saveState(outState);
     }
 
     @Override
     protected void onPause() {
         super.onPause();
-        web.onPause();
+        if (web != null) web.onPause();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        web.onResume();
+        if (web != null) web.onResume();
     }
 
     @Override
