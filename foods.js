@@ -3,6 +3,7 @@
 // from USDA FoodData Central (SR Legacy 2018-04 and Foundation Foods 2025-04), which is public domain (CC0).
 // Some Indian ingredients have no exact USDA entry; the closest equivalent is used (see data/ingredients.py).
 // Format: [name, aliases, serving, kcal, protein g, carbs g, fat g, category, recipe per serving]
+window.INDI_FOODS_VERSION = 202611151426;
 window.INDI_FOODS = [
   ["Chai with sugar", "tea chai cheeni shakkar", "1 cup (150 ml)", 98, 3.2, 14.8, 3.0, "Chai, coffee & milk", "Toned milk (3% fat) 100 g, Sugar 10 g"],
   ["Chai with sugar (only milk, no water)", "tea chai doodh wali full milk", "1 cup (150 ml)", 127, 4.8, 17.2, 4.5, "Chai, coffee & milk", "Toned milk (3% fat) 150 g, Sugar 10 g"],

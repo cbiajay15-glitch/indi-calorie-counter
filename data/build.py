@@ -6,7 +6,7 @@ Usage:
 
 usda100.json maps "sr:<fdc_id>" / "fd:<fdc_id>" -> {"name", "kcal", "p", "f", "c"} per 100 g.
 """
-import json, os, sys
+import datetime, json, os, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -71,8 +71,14 @@ def build():
         "// Some Indian ingredients have no exact USDA entry; the closest equivalent is used (see data/ingredients.py).\n"
         "// Format: [name, aliases, serving, kcal, protein g, carbs g, fat g, category, recipe per serving]\n"
     )
-    body = "window.INDI_FOODS = [\n" + ",\n".join("  " + json.dumps(r, ensure_ascii=False) for r in rows) + "\n];\n"
+    # Version = UTC build time (YYYYMMDDHHMM). Apps compare it to decide whether a downloaded list is newer.
+    version = int(datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d%H%M"))
+    body = ("window.INDI_FOODS_VERSION = " + str(version) + ";\n"
+            "window.INDI_FOODS = [\n" + ",\n".join("  " + json.dumps(r, ensure_ascii=False) for r in rows) + "\n];\n")
     open(os.path.join(HERE, "..", "foods.js"), "w", encoding="utf-8").write(header + body)
+    # foods.json: the same list as plain data, downloaded by installed apps to update their food list.
+    with open(os.path.join(HERE, "..", "foods.json"), "w", encoding="utf-8") as fh:
+        json.dump({"version": version, "count": len(rows), "foods": rows}, fh, ensure_ascii=False, separators=(",", ":"))
     print(f"built {len(rows)} dishes")
     for w in warnings:
         print("WARN", w)

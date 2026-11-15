@@ -1,6 +1,7 @@
 // Offline support: serve the app shell from cache, refresh it in the background.
-const CACHE = "indi-calorie-counter-v6";
+const CACHE = "indi-calorie-counter-v7";
 const SHELL = ["./", "index.html", "foods.js", "manifest.webmanifest", "icon.svg"];
+// foods.json is fetched fresh by the app itself (auto-update), so it is never served from this cache.
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
 });
@@ -11,7 +12,8 @@ self.addEventListener("activate", (e) => {
   );
 });
 self.addEventListener("fetch", (e) => {
-  if (e.request.method !== "GET" || new URL(e.request.url).origin !== location.origin) return;
+  const u = new URL(e.request.url);
+  if (e.request.method !== "GET" || u.origin !== location.origin || u.pathname.endsWith("/foods.json")) return;
   e.respondWith(
     caches.match(e.request).then((hit) => {
       const net = fetch(e.request).then((res) => {
