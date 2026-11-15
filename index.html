@@ -494,15 +494,45 @@ input:focus, select:focus, button:focus-visible { outline: 2px solid var(--brand
   }
   function findFood(id) { var a = allFoods(); for (var i = 0; i < a.length; i++) if (a[i].id === id) return a[i]; return null; }
 
+  // Spelling-tolerant search for Hinglish: aalu/aloo, mung/moong, bada/vada, laddu/ladoo, rasgula/rasgulla, kele/kela.
+  var STOP = { ka: 1, ki: 1, ke: 1, aur: 1, with: 1, and: 1, the: 1, of: 1, wala: 1, wali: 1, vala: 1, vali: 1 };
+  var CAT_WORDS = {
+    "Sweets": "mithai mithaai meetha mitha sweet sweets dessert",
+    "Light snacks": "snack snacks nashta namkeen",
+    "Samosa, kachori & fried": "snack snacks nashta tala fried pakode",
+    "Chaat & street food": "snack snacks nashta chaat street",
+    "Chai, coffee & milk": "drink",
+    "Drinks": "drink drinks sharbat",
+    "Fruits": "fruit fal phal",
+    "Sabzi": "sabji sabzi subzi",
+    "Breads": "bread"
+  };
+  function norm(s) {
+    s = String(s).toLowerCase().replace(/[^a-z0-9]+/g, " ");
+    s = s.replace(/ph/g, "f").replace(/([bkgdtcsj])h/g, "$1").replace(/w/g, "v").replace(/b/g, "v")
+      .replace(/z/g, "j").replace(/q/g, "k").replace(/ee/g, "i").replace(/oo/g, "u").replace(/y/g, "i");
+    s = s.replace(/([a-z])\1+/g, "$1"); // laddu->ladu, rasgulla->rasgula
+    return s.split(" ").filter(Boolean).map(function (w) {
+      return w.length > 3 ? w.replace(/[aeiou]$/, "") : w; // kela/kele -> kel, vada/bada -> vad
+    });
+  }
+  var searchIndex = null, indexSize = -1;
+  function buildIndex() {
+    var foods = allFoods();
+    if (searchIndex && indexSize === foods.length) return searchIndex;
+    searchIndex = foods.map(function (f) {
+      return { f: f, name: norm(f.name).join(" "), hay: " " + norm(f.name + " " + (f.aliases || "") + " " + (CAT_WORDS[f.cat] || "")).join(" ") };
+    });
+    indexSize = foods.length;
+    return searchIndex;
+  }
   function search(q) {
-    var tokens = q.toLowerCase().trim().split(/\s+/).filter(Boolean);
+    var tokens = norm(q).filter(function (t) { return !STOP[t] && t.length > 1; });
     if (!tokens.length) return [];
-    return allFoods().map(function (f) {
-      var hay = (f.name + " " + (f.aliases || "")).toLowerCase();
-      if (!tokens.every(function (t) { return hay.indexOf(t) !== -1; })) return null;
-      var n = f.name.toLowerCase();
-      var score = n.indexOf(tokens[0]) === 0 ? 0 : (n.indexOf(tokens[0]) !== -1 ? 1 : 2);
-      return { f: f, s: score };
+    return buildIndex().map(function (x) {
+      if (!tokens.every(function (t) { return x.hay.indexOf(" " + t) !== -1 || (t.length > 3 && x.hay.indexOf(t) !== -1); })) return null;
+      var score = x.name.indexOf(tokens[0]) === 0 ? 0 : (x.name.indexOf(tokens[0]) !== -1 ? 1 : 2);
+      return { f: x.f, s: score };
     }).filter(Boolean).sort(function (a, b) { return a.s - b.s || a.f.name.localeCompare(b.f.name); }).map(function (x) { return x.f; });
   }
 

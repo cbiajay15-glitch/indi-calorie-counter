@@ -1,5 +1,5 @@
 // Offline support: serve the app shell from cache, refresh it in the background.
-const CACHE = "indi-calorie-counter-v4";
+const CACHE = "indi-calorie-counter-v5";
 const SHELL = ["./", "index.html", "foods.js", "manifest.webmanifest", "icon.svg"];
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
