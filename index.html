@@ -263,6 +263,33 @@ input:focus, select:focus, button:focus-visible { outline: 2px solid var(--brand
 }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(-4px); }
 .note { font-size: 12.5px; color: var(--muted); margin-top: 8px; }
+/* activity */
+.aic { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; font-size: 19px; background: var(--surface-2); flex: none; }
+.ename { flex: 1; min-width: 0; text-align: left; border: 0; background: none; padding: 0; }
+.ename div:first-child { font-size: 15px; font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ename div:last-child { font-size: 12.5px; color: var(--muted); }
+.warn { color: var(--danger); font-size: 12.5px; margin: 6px 0 0; }
+.inrow { display: flex; align-items: center; gap: 12px; }
+.inrow label { flex: none; font-size: 14px; font-weight: 600; }
+.inrow input { width: 130px; padding: 9px 12px; }
+.inrow .small { flex: 1; min-width: 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.chips .addbtn:disabled { opacity: .4; }
+.chk { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; color: var(--muted); font-weight: 500; }
+.chk input { width: 18px; height: 18px; margin: 1px 0 0; flex: none; accent-color: var(--brand); }
+.wsum b.good { color: var(--brand); }
+.wsum b.bad { color: var(--danger); }
+.brk { display: grid; gap: 7px; margin-top: 12px; font-size: 13.5px; }
+.brk .stat-row { font-size: 13.5px; }
+.brk .stat-row span:first-child { color: var(--muted); }
+.brk .tot { border-top: 1px solid var(--line); padding-top: 7px; font-weight: 700; }
+.bars7 { display: flex; align-items: flex-end; gap: 6px; height: 96px; margin-top: 6px; }
+.bars7 div { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; font-size: 11px; color: var(--muted); gap: 2px; }
+.bars7 i { display: block; width: 100%; border-radius: 6px 6px 2px 2px; background: var(--brand); min-height: 2px; }
+.bars7 i.neg { background: var(--danger); }
+.bars7 i.part { opacity: .35; }
+.preview { text-align: center; font-size: 15px; padding: 12px; border-radius: 16px; background: var(--accent-soft); }
+.preview b { font-size: 22px; font-family: "Fraunces", Georgia, serif; }
 @media (max-width: 370px) {
   .hero-main { grid-template-columns: 1fr; justify-items: center; }
   .hero-stats { width: 100%; grid-template-columns: repeat(3, 1fr); }
@@ -415,6 +442,35 @@ window.addEventListener("error", function (e) {
     ["1.725", "Very active (hard exercise 6–7 days)"]
   ];
 
+  // ---------- Activity constants ----------
+  // Work type: share of BMR spent on non-walking daily life, and steps assumed when no step count is entered.
+  var WORK = {
+    desk: ["Desk job / mostly sitting", 0.10, 3000],
+    stand: ["On my feet (shop, teaching)", 0.15, 6000],
+    phys: ["Physical work (farm, labour, delivery)", 0.30, 9000]
+  };
+  var GYM = { light: ["Light", 3.0], normal: ["Normal", 3.5], heavy: ["Heavy, short rests", 5.0] };
+  // id, name, MET (Compendium of Physical Activities), steps per minute a watch roughly counts, icon
+  var SPORT = [
+    ["cycle", "Cycling (16–19 km/h)", 6.8, 0, "🚴"],
+    ["cyclel", "Cycling, easy (under 16 km/h)", 4.0, 0, "🚴"],
+    ["scycle", "Stationary bike, moderate", 5.5, 0, "🚲"],
+    ["elliptical", "Cross trainer / elliptical", 5.0, 120, "🏃"],
+    ["hiit", "HIIT / circuit training", 8.0, 60, "🔥"],
+    ["skip", "Skipping rope", 11.8, 100, "🪢"],
+    ["swim", "Swimming, easy", 6.0, 0, "🏊"],
+    ["cricket", "Cricket", 4.8, 30, "🏏"],
+    ["badminton", "Badminton", 5.5, 70, "🏸"],
+    ["football", "Football", 7.0, 90, "⚽"],
+    ["volley", "Volleyball", 4.0, 40, "🏐"],
+    ["tt", "Table tennis", 4.0, 30, "🏓"],
+    ["zumba", "Zumba / aerobics dance", 6.5, 100, "💃"],
+    ["yoga", "Yoga (hatha)", 2.5, 0, "🧘"]
+  ];
+  var SPM = {};
+  SPORT.forEach(function (s) { SPM[s[0]] = { name: s[1], met: s[2], spm: s[3], ic: s[4] }; });
+  var RUN_CADENCE = 160;
+
   // ---------- Food list ----------
   function slug(s) { return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, ""); }
   function toFoods(rows) {
@@ -458,7 +514,7 @@ window.addEventListener("error", function (e) {
         var before = BUILTIN.length;
         BUILTIN = toFoods(d.foods); foodsVersion = d.version; searchIndex = null;
         try { localStorage.setItem(FOODS_KEY, JSON.stringify({ version: d.version, foods: d.foods })); } catch (e) { /* use for this session only */ }
-        if (ui.sheet) renderSheet(); else if (ui.tab === "settings") render();
+        if (ui.sheet) { if (ui.sheet.kind !== "act") renderSheet(); } else if (ui.tab === "settings") render();
         var added = BUILTIN.length - before;
         toast("Food list updated" + (added > 0 ? ": " + added + " new foods" : ""));
       })
@@ -467,14 +523,42 @@ window.addEventListener("error", function (e) {
   }
 
   // ---------- Storage ----------
-  function blank() { return { v: 1, profile: null, targetOverride: null, logs: {}, weights: [], custom: [], recent: [] }; }
+  function blank() {
+    return { v: 1, profile: null, targetOverride: null, logs: {}, weights: [], custom: [], recent: [],
+      act: {}, routine: [], useWatch: false, autoCal: false };
+  }
   function load() {
     try {
       var raw = localStorage.getItem(KEY);
       if (!raw) return blank();
       var s = JSON.parse(raw);
-      return valid(s) ? Object.assign(blank(), s) : blank();
+      return valid(s) ? cleanAct(Object.assign(blank(), s)) : blank();
     } catch (e) { return blank(); }
+  }
+  // Activity data from older versions or backups may be missing or malformed: keep only well-formed sessions.
+  function posNum(v) { var n = Number(v); return isFinite(n) && n > 0 ? n : null; }
+  function cleanSess(x) {
+    if (!x || typeof x !== "object" || ["walk", "run", "gym", "sport"].indexOf(x.t) === -1) return null;
+    if (x.t === "sport" && !SPM[x.sp]) return null;
+    var c = { id: typeof x.id === "string" && x.id ? x.id : uid(), t: x.t, min: posNum(x.min), inSteps: x.inSteps !== false };
+    if (x.t === "walk" || x.t === "run") { c.km = posNum(x.km); c.inc = posNum(x.inc); }
+    if (x.t === "gym") c.int = GYM[x.int] ? x.int : "normal";
+    if (x.t === "sport") c.sp = x.sp;
+    return c;
+  }
+  function cleanAct(s) {
+    var a = s.act && typeof s.act === "object" && !Array.isArray(s.act) ? s.act : {};
+    s.act = {};
+    Object.keys(a).forEach(function (k) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(k) || !a[k] || typeof a[k] !== "object") return;
+      var ex = (Array.isArray(a[k].ex) ? a[k].ex : []).map(cleanSess).filter(Boolean);
+      var steps = posNum(a[k].steps), watch = posNum(a[k].watch);
+      if (steps || watch || ex.length) s.act[k] = { steps: steps ? Math.round(steps) : null, watch: watch ? Math.round(watch) : null, ex: ex };
+    });
+    s.routine = (Array.isArray(s.routine) ? s.routine : []).map(cleanSess).filter(Boolean);
+    s.useWatch = s.useWatch === true; s.autoCal = s.autoCal === true;
+    if (s.profile && !WORK[s.profile.work]) s.profile.work = "desk";
+    return s;
   }
   function valid(s) {
     return s && typeof s === "object" && typeof s.logs === "object" && Array.isArray(s.weights) && Array.isArray(s.custom);
@@ -505,6 +589,7 @@ window.addEventListener("error", function (e) {
   }
   function r0(n) { return Math.round(n); }
   function r1(n) { return Math.round(n * 10) / 10; }
+  function r2(n) { return Math.round(n * 100) / 100; }
   function fmtQty(q) { return (Math.round(q * 100) / 100).toString(); }
   function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
   function num(v) { var n = parseFloat(v); return isFinite(n) ? n : NaN; }
@@ -558,6 +643,125 @@ window.addEventListener("error", function (e) {
     return totals(all);
   }
 
+  // ---------- Calories burned ----------
+  // Walk / run: ACSM metabolic equations, net of resting, from distance + time (speed) and incline:
+  //   walk 0.1*S + 1.8*S*G, run 0.18*S + 0.9*S*G  ml O2 per kg per min  (S = m/min, G = incline fraction;
+  //   ACSM's running term is 0.2, 0.18 is kept slightly conservative). 1 L O2 = 5 kcal.
+  //   Level walking comes to ~0.5 kcal per kg per km, running ~0.9.
+  // Gym and sports: (MET - 1) x 3.5 x kg / 200 kcal per minute (resting part is already in BMR).
+  // Steps: every step at walking cost; steps already covered by a logged session are taken out of the watch total.
+  // Base: BMR (Mifflin-St Jeor, the same formula as the target) + non-walking daily life by work type
+  //   + 10% of food eaten (digestion).
+  function actDay(k, create) {
+    var a = state.act[k];
+    if (!a && create) a = state.act[k] = { steps: null, watch: null, ex: [] };
+    return a || { steps: null, watch: null, ex: [] };
+  }
+  function weightOn(k) {
+    var w = state.weights.filter(function (e) { return e.kg > 0; }).sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+    var before = w.filter(function (e) { return e.date <= k; });
+    if (before.length) return before[before.length - 1].kg;
+    if (w.length) return w[0].kg;
+    return state.profile.weightKg;
+  }
+  function bmrFor(w) { var p = state.profile; return 10 * w + 6.25 * p.heightCm - 5 * p.age + (p.sex === "male" ? 5 : -161); }
+  function strideM() { return 0.414 * state.profile.heightCm / 100; }
+  function workOf() { return WORK[state.profile.work] || WORK.desk; }
+  function sessName(x) {
+    if (x.t === "walk") return "Walk" + (x.inc ? " · " + x.inc + "% incline" : "");
+    if (x.t === "run") return "Run / jog" + (x.inc ? " · " + x.inc + "% incline" : "");
+    if (x.t === "gym") return "Gym · weights (" + (GYM[x.int] || GYM.normal)[0].toLowerCase() + ")";
+    return (SPM[x.sp] || { name: "Activity" }).name;
+  }
+  function sessIcon(x) { return x.t === "walk" ? "🚶" : x.t === "run" ? "🏃" : x.t === "gym" ? "🏋️" : (SPM[x.sp] || { ic: "⚡" }).ic; }
+  function calcSess(x, w, stride) {
+    var r = { kcal: 0, steps: 0, km: null, min: null, spd: null, warn: "", guessed: "" };
+    if (x.t === "walk" || x.t === "run") {
+      var dflt = x.t === "walk" ? 80 : 133; // m/min if one value is missing: 4.8 km/h walk, 8 km/h jog
+      var km = x.km > 0 ? x.km : null, min = x.min > 0 ? x.min : null;
+      if (km === null && min === null) { r.warn = "Enter distance or time."; return r; }
+      if (km === null) { km = min * dflt / 1000; r.guessed = "km"; }
+      if (min === null) { min = km * 1000 / dflt; r.guessed = "min"; }
+      var S = km * 1000 / min, G = Math.min(Math.max(x.inc || 0, 0), 30) / 100;
+      var o2 = x.t === "walk" ? 0.1 * S + 1.8 * S * G : 0.18 * S + 0.9 * S * G;
+      r.kcal = o2 * w * min / 1000 * 5; r.km = km; r.min = min; r.spd = S * 0.06;
+      r.steps = x.t === "walk" ? km * 1000 / stride : min * RUN_CADENCE;
+      if (r.spd > 25) r.warn = r1(r.spd) + " km/h looks wrong. Check distance and time.";
+      else if (x.t === "walk" && r.spd > 7.5) r.warn = "That is very fast for walking. If you jogged, log it as Run.";
+      else if (x.t === "run" && r.spd < 6) r.warn = "That pace is a brisk walk. Logging it as Walk gives a truer number.";
+      else if (r.guessed) r.warn = (r.guessed === "km" ? "No distance" : "No time") + " given, assumed " + (x.t === "walk" ? "4.8" : "8") + " km/h.";
+      return r;
+    }
+    var met, spm;
+    if (x.t === "gym") { met = (GYM[x.int] || GYM.normal)[1]; spm = 15; }
+    else { var s = SPM[x.sp]; if (!s) { r.warn = "Unknown activity."; return r; } met = s.met; spm = s.spm; }
+    if (!(x.min > 0)) { r.warn = "Enter minutes."; return r; }
+    r.kcal = (met - 1) * 3.5 * w / 200 * x.min; r.min = x.min; r.steps = x.min * spm;
+    if (x.t === "gym" && x.min > 150) r.warn = "Log only the workout time, not travel or waiting.";
+    return r;
+  }
+  function energyRaw(k) {
+    var w = weightOn(k), B = bmrFor(w), work = workOf(), stride = strideM();
+    var dd = day(k, false), fin = dayTotals(dd).kcal;
+    var logged = MEALS.some(function (m) { return (dd.meals[m[0]] || []).length > 0; });
+    var a = actDay(k, false);
+    var ss = a.ex.map(function (x) { return { x: x, r: calcSess(x, w, stride) }; });
+    var sessK = ss.reduce(function (t, o) { return t + o.r.kcal; }, 0);
+    var hasSteps = a.steps > 0;
+    var sessSteps = hasSteps ? ss.reduce(function (t, o) { return t + (o.x.inSteps ? o.r.steps : 0); }, 0) : 0;
+    var walkSteps = hasSteps ? Math.max(0, a.steps - sessSteps) : work[2];
+    var stepK = walkSteps * stride / 1000 * w * 0.5;
+    var life = B * work[1], tef = 0.1 * fin, est = stepK + sessK;
+    var useW = state.useWatch && a.watch > 0;
+    var active = useW ? a.watch : est;
+    var outNoTef = B + life + active;
+    return { k: k, w: w, B: B, work: work, life: life, tef: tef, fin: fin, logged: logged, a: a, ss: ss, sessK: sessK,
+      stepK: stepK, walkSteps: walkSteps, hasSteps: hasSteps, sessSteps: sessSteps, stepsOver: hasSteps && sessSteps > a.steps * 1.05,
+      est: est, useW: useW, active: active, outNoTef: outNoTef, outRaw: outNoTef + tef, hasAct: hasSteps || a.ex.length > 0 || a.watch > 0 };
+  }
+  var CAL = null;
+  function calFactor() { return state.autoCal && CAL && CAL.ok ? CAL.factor : 1; }
+  function energy(k) { var e = energyRaw(k); e.f = calFactor(); e.out = e.outRaw * e.f; e.bal = e.fin - e.out; return e; }
+  // A day counts as fully logged only when it is over and food is at least 60% of BMR.
+  function complete(e) { return e.logged && e.k < todayKey() && e.fin >= e.B * 0.6; }
+  // Reality check: compare the estimate with what the weight actually did over the last 28 days.
+  function calib() {
+    var t = todayKey(), L = [], W = [];
+    for (var i = 0; i < 28; i++) { var k = shiftKey(t, -i), e = energyRaw(k); if (complete(e)) L.push(e); }
+    state.weights.forEach(function (x) {
+      var d = Math.round((parseKey(x.date) - parseKey(t)) / 864e5);
+      if (d <= 0 && d > -28 && x.kg > 0) W.push([d, x.kg]);
+    });
+    var r = { ok: false, n: L.length, nw: W.length, span: 0 };
+    if (W.length >= 2) { var xs = W.map(function (p) { return p[0]; }); r.span = Math.max.apply(null, xs) - Math.min.apply(null, xs); }
+    if (L.length < 10 || W.length < 4 || r.span < 14) return r;
+    var mx = 0, my = 0; W.forEach(function (p) { mx += p[0]; my += p[1]; }); mx /= W.length; my /= W.length;
+    var sxy = 0, sxx = 0; W.forEach(function (p) { sxy += (p[0] - mx) * (p[1] - my); sxx += (p[0] - mx) * (p[0] - mx); });
+    r.slope = sxx ? sxy / sxx : 0;
+    r.avgIn = L.reduce(function (s, e) { return s + e.fin; }, 0) / L.length;
+    r.avgOut = L.reduce(function (s, e) { return s + e.outRaw; }, 0) / L.length;
+    r.tdee = r.avgIn - r.slope * 7700;
+    r.raw = r.tdee / r.avgOut;
+    r.factor = Math.max(0.7, Math.min(1.15, r.raw));
+    r.clamped = Math.abs(r.raw - r.factor) > 1e-9;
+    r.ok = true;
+    return r;
+  }
+  // Target from logged activity: eat T so that T - (outNoTef + 0.1T) * f = goal change.
+  // Until the reality check is on, the estimate is trimmed by 10% because formulas usually run high.
+  function activityTarget() {
+    var p = state.profile, t = todayKey(), xs = [];
+    for (var i = 0; i < 7; i++) { var e = energyRaw(shiftKey(t, -i)); if (e.hasAct) xs.push(e.outNoTef); }
+    if (!xs.length) return null;
+    var typ = xs.reduce(function (a, b) { return a + b; }, 0) / xs.length;
+    var cal = calFactor() !== 1, f = cal ? calFactor() : 0.9;
+    var change = p.goal === "maintain" ? 0 : (p.rate * 7700) / 7 * (p.goal === "lose" ? -1 : 1);
+    var floor = p.sex === "male" ? 1500 : 1200;
+    var T = (typ * f + change) / (1 - 0.1 * f);
+    var maint = typ * f / (1 - 0.1 * f);
+    return { kcal: Math.max(floor, Math.round(T / 10) * 10), maint: Math.round(maint / 10) * 10, days: xs.length, cal: cal, floorHit: T < floor };
+  }
+
   // ---------- Render ----------
   var app = document.getElementById("app");
   var tabs = document.getElementById("tabs");
@@ -601,6 +805,7 @@ window.addEventListener("error", function (e) {
 
   function renderView() {
     if (!state.profile) { tabs.hidden = true; app.innerHTML = onboardingView(); return; }
+    CAL = calib();
     tabs.hidden = false;
     tabs.querySelectorAll("button").forEach(function (b) {
       if (b.dataset.tab === ui.tab) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
@@ -652,6 +857,7 @@ window.addEventListener("error", function (e) {
     var t = targets();
     var d = day(ui.date, false);
     var tot = dayTotals(d);
+    var en = energy(ui.date);
     var waterGoal = 8;
     var drops = "";
     for (var i = 0; i < Math.max(waterGoal, d.water); i++) drops += '<span class="drop' + (i < d.water ? " on" : "") + '"></span>';
@@ -681,7 +887,7 @@ window.addEventListener("error", function (e) {
       '<div class="hero-stats">' +
       '<div class="pill"><span><span class="ic">🍽️</span> Eaten</span><b data-count="' + r0(tot.kcal) + '">' + r0(tot.kcal) + '</b></div>' +
       '<div class="pill"><span><span class="ic">🎯</span> Target</span><b data-count="' + t.kcal + '">' + t.kcal + '</b></div>' +
-      '<div class="pill"><span><span class="ic">💧</span> Water</span><b>' + d.water + '/' + waterGoal + '</b></div>' +
+      '<div class="pill"><span><span class="ic">🔥</span> Active</span><b data-count="' + r0(en.active) + '">' + r0(en.active) + '</b></div>' +
       '</div></div></section>' +
       '<section class="card"><h2>Macros <small>today’s target</small></h2><div class="macros">' +
       macro("Protein", tot.p, t.protein, "var(--protein)") +
@@ -692,7 +898,72 @@ window.addEventListener("error", function (e) {
       '<div class="water"><div class="drops" aria-hidden="true">' + drops + '</div>' +
       '<button class="roundbtn" data-act="water" data-d="-1" aria-label="Remove a glass">−</button>' +
       '<button class="roundbtn solid" data-act="water" data-d="1" aria-label="Add a glass">+</button></div></section>' +
-      meals;
+      meals + activityCard(en) + balanceCard(en);
+  }
+
+  function sessDetail(o) {
+    var r = o.r, bits = [];
+    if (r.km !== null && (o.x.t === "walk" || o.x.t === "run")) bits.push((r.guessed === "km" ? "~" : "") + r1(r.km) + " km");
+    if (r.min !== null) bits.push((r.guessed === "min" ? "~" : "") + r0(r.min) + " min");
+    if (r.spd) bits.push(r1(r.spd) + " km/h");
+    return bits.join(" · ");
+  }
+
+  function activityCard(en) {
+    var a = en.a;
+    var items = en.ss.map(function (o) {
+      return '<li><span class="aic" aria-hidden="true">' + sessIcon(o.x) + '</span>' +
+        '<button class="ename" data-act="edit-act" data-id="' + esc(o.x.id) + '" aria-label="Edit ' + esc(sessName(o.x)) + '"><div>' + esc(sessName(o.x)) + '</div><div>' + esc(sessDetail(o) || "tap to edit") + '</div></button>' +
+        '<span class="k">' + r0(o.r.kcal) + '<small>kcal</small></span>' +
+        '<button class="del" data-act="del-act" data-id="' + esc(o.x.id) + '" aria-label="Remove ' + esc(sessName(o.x)) + '">×</button></li>' +
+        (o.r.warn ? '<li style="border-top:0;padding-top:0"><p class="warn" style="margin:0">' + esc(o.r.warn) + '</p></li>' : "");
+    }).join("");
+    var stepsNote = en.hasSteps
+      ? "~" + r1(a.steps * strideM() / 1000) + " km. " + (en.sessSteps > 0 ? "Minus logged sessions, " + r0(en.walkSteps) + " steps = " : "") + r0(en.stepK) + " kcal"
+      : "Not entered: assuming " + en.work[2] + " everyday steps (" + r0(en.stepK) + " kcal)";
+    var hasPrev = actDay(shiftKey(ui.date, -1), false).ex.length > 0;
+    return '<section class="card" id="activity"><div class="meal-head"><div class="meal-ic lunch" aria-hidden="true">🏃</div>' +
+      '<div class="mt"><h3>Activity</h3><div class="sub">' + r0(en.active) + ' kcal' + (en.useW ? " (from watch)" : "") + ' · ' +
+      (en.ss.length ? en.ss.length + (en.ss.length === 1 ? " session" : " sessions") : "steps only") + '</div></div>' +
+      '<button class="roundbtn solid" data-act="open-act" data-type="walk" aria-label="Add activity">+</button></div>' +
+      '<div class="inrow" style="margin-top:14px"><label for="in-steps">👣 Steps</label>' +
+      '<input id="in-steps" type="number" inputmode="numeric" min="0" max="100000" step="1" data-actfield="steps" value="' + (a.steps || "") + '" placeholder="from watch / phone">' +
+      '</div><p class="note" style="margin-top:6px">' + esc(stepsNote) + '</p>' +
+      (en.stepsOver ? '<p class="warn">Your sessions add up to about ' + r0(en.sessSteps) + ' steps, more than your total. Check the step count, or untick "already in my steps" on a session.</p>' : "") +
+      (items ? '<ul class="entries">' + items + '</ul>' : "") +
+      '<div class="chips">' +
+      '<button class="addbtn" data-act="open-act" data-type="walk">🚶 Walk</button>' +
+      '<button class="addbtn" data-act="open-act" data-type="run">🏃 Run</button>' +
+      '<button class="addbtn" data-act="open-act" data-type="gym">🏋️ Gym</button>' +
+      '<button class="addbtn" data-act="open-act" data-type="sport">⚡ Other</button></div>' +
+      '<div class="chips" style="margin-top:8px">' +
+      '<button class="addbtn" data-act="act-routine"' + (state.routine.length ? "" : " disabled") + '>Add my routine' + (state.routine.length ? " (" + state.routine.length + ")" : "") + '</button>' +
+      '<button class="addbtn" data-act="act-yesterday"' + (hasPrev ? "" : " disabled") + '>Same as yesterday</button>' +
+      '<button class="addbtn" data-act="act-save-routine"' + (a.ex.length ? "" : " disabled") + '>Save as my routine</button></div>' +
+      '<div class="inrow" style="margin-top:16px"><label for="in-watch">⌚ Watch kcal</label>' +
+      '<input id="in-watch" type="number" inputmode="numeric" min="0" max="10000" step="1" data-actfield="watch" value="' + (a.watch || "") + '" placeholder="optional">' +
+      '<span class="small muted">' + (a.watch > 0 ? "Our estimate " + r0(en.est) + " kcal" : "Active calories, to compare") + '</span></div>' +
+      '<label class="chk" style="margin-top:10px"><input type="checkbox" data-pref="useWatch"' + (state.useWatch ? " checked" : "") + '> Use the watch number instead of our estimate</label>' +
+      '<p class="note">Walk and run: enter distance and time from your watch so speed decides the calories. If you only have the day\'s step total and no separate walk, just enter steps. Gym: workout time only.</p></section>';
+  }
+
+  function balanceCard(en) {
+    var def = -en.bal;
+    function row(l, v, cls) { return '<div class="stat-row' + (cls ? " " + cls : "") + '"><span>' + l + '</span><b>' + v + '</b></div>'; }
+    var rows = row("BMR (at rest) · " + r1(en.w) + " kg", r0(en.B)) +
+      row("Daily life · " + esc(en.work[0].toLowerCase()), r0(en.life)) +
+      row("Digesting food (10% of eaten)", r0(en.tef)) +
+      (en.useW ? row("Watch active kcal", r0(en.active))
+        : row((en.hasSteps ? "Steps" : "Everyday steps (assumed)") + " · " + r0(en.walkSteps), r0(en.stepK)) +
+          (en.ss.length ? row("Exercise sessions", r0(en.sessK)) : "")) +
+      (en.f !== 1 ? row("Reality-check correction (×" + en.f.toFixed(2) + ")", (en.out - en.outRaw > 0 ? "+" : "") + r0(en.out - en.outRaw)) : "") +
+      row("Total burned", r0(en.out), "tot");
+    return '<section class="card"><h2>🔥 Eaten vs burned <small>' + esc(prettyDate(ui.date)) + '</small></h2>' +
+      '<div class="wsum"><div><span>Eaten</span><b>' + r0(en.fin) + '</b></div><div><span>Burned</span><b>' + r0(en.out) + '</b></div>' +
+      '<div><span>' + (def >= 0 ? "Deficit" : "Surplus") + '</span><b class="' + (def >= 0 ? "good" : "bad") + '">' + r0(Math.abs(def)) + '</b></div></div>' +
+      '<div class="brk">' + rows + '</div>' +
+      '<p class="note">' + (en.logged ? "" : "No food logged for this day yet. ") +
+      'Exercise is not added back to your food target; it makes your deficit bigger. These are estimates: check them against your weight in the Weight tab.</p></section>';
   }
 
   function weightView() {
@@ -713,8 +984,47 @@ window.addEventListener("error", function (e) {
       '<label class="f">Weight (kg)<input type="number" name="kg" inputmode="decimal" step="0.1" min="25" max="300" value="' + r1(cur) + '" required></label></div>' +
       '<button class="primary" type="submit">Save weight</button></form></section>' +
       '<section class="card"><h2>📈 Progress <small>' + (w.length ? 'lowest ' + r1(lowest) + ' kg' : '') + '</small></h2>' +
-      chart(w) + '</section>' +
+      chart(w) + '</section>' + weekCard() + realityCard() +
       (list ? '<section class="card"><h2>🗓️ History</h2><ul class="wlist">' + list + '</ul></section>' : "");
+  }
+
+  function weekCard() {
+    var t = todayKey(), days = [];
+    for (var i = 6; i >= 0; i--) { var k = shiftKey(t, -i); days.push(energy(k)); }
+    var vals = days.map(function (e) { return e.logged ? -e.bal : 0; });
+    var mx = Math.max.apply(null, vals.map(Math.abs).concat([300]));
+    var full = days.filter(complete);
+    var avg = full.length ? full.reduce(function (s, e) { return s - e.bal; }, 0) / full.length : 0;
+    var bars = days.map(function (e, i) {
+      var v = vals[i];
+      return '<div><span>' + (e.logged ? r0(v) : "") + '</span><i class="' + (v < 0 ? "neg" : "") + (e.logged && !complete(e) ? " part" : "") + '" style="height:' + (Math.abs(v) / mx * 64).toFixed(1) + 'px"></i>' +
+        '<span>' + esc(parseKey(e.k).toLocaleDateString(undefined, { weekday: "narrow" })) + '</span></div>';
+    }).join("");
+    return '<section class="card"><h2>🔥 Last 7 days <small>deficit, kcal</small></h2><div class="bars7">' + bars + '</div>' +
+      '<p class="note">' + (full.length
+        ? full.length + (full.length === 1 ? " full day" : " full days") + ": average " + (avg >= 0 ? "deficit " : "surplus ") + "<b>" + r0(Math.abs(avg)) + "</b> kcal/day, about <b>" + r2(Math.abs(avg) * 7 / 7700) + " kg</b> a week " + (avg >= 0 ? "down" : "up") + " on paper."
+        : "The average appears once a full day is logged.") +
+      ' Red = surplus. Faded = today or a day with too little food logged to be complete; those are left out of the average.</p></section>';
+  }
+
+  function realityCard() {
+    var c = CAL;
+    var h = '<section class="card"><h2>🧪 Reality check <small>last 28 days</small></h2>';
+    if (!c.ok) {
+      return h + '<p class="small muted" style="margin:0">Compares our burned-calorie estimate with what your weight actually did. Needs 10 fully logged days (now ' + c.n +
+        '), 4 weigh-ins (now ' + c.nw + ') spread over at least 14 days (now ' + c.span + ').</p></section>';
+    }
+    var wk = c.slope * 7;
+    return h + '<div class="brk" style="margin-top:0">' +
+      '<div class="stat-row"><span>Average eaten (full days)</span><b>' + r0(c.avgIn) + ' kcal</b></div>' +
+      '<div class="stat-row"><span>Weight trend</span><b>' + (wk > 0 ? "+" : "") + r2(wk) + ' kg / week</b></div>' +
+      '<div class="stat-row"><span>Real burn (food + weight)</span><b>' + r0(c.tdee) + ' kcal</b></div>' +
+      '<div class="stat-row"><span>Our estimate</span><b>' + r0(c.avgOut) + ' kcal</b></div>' +
+      '<div class="stat-row tot"><span>Difference</span><b>' + ((c.raw - 1) > 0 ? "+" : "") + r0((c.raw - 1) * 100) + '%</b></div></div>' +
+      '<label class="chk" style="margin-top:12px"><input type="checkbox" data-pref="autoCal"' + (state.autoCal ? " checked" : "") + '> Correct burned calories by this (×' + c.factor.toFixed(2) + (c.clamped ? ", capped" : "") + ')</label>' +
+      '<p class="note">' + (Math.abs(c.raw - 1) > 0.1
+        ? "More than 10% apart. The usual cause is food that didn't get logged (oil, ghee, tea, snacks) or half-logged days. Fix logging first, then turn the correction on."
+        : "The estimate is close to reality.") + ' Only fully logged days count here.</p></section>';
   }
 
   function chart(w) {
@@ -739,7 +1049,8 @@ window.addEventListener("error", function (e) {
   }
 
   function profileFields(p) {
-    p = p || { sex: "female", age: "", heightCm: "", weightKg: "", activity: 1.375, goal: "lose", rate: 0.5 };
+    p = p || { sex: "female", age: "", heightCm: "", weightKg: "", activity: 1.375, goal: "lose", rate: 0.5, work: "desk" };
+    var work = Object.keys(WORK).map(function (k) { return '<option value="' + k + '"' + ((p.work || "desk") === k ? " selected" : "") + '>' + WORK[k][0] + '</option>'; }).join("");
     var act = ACTIVITY.map(function (a) { return '<option value="' + a[0] + '"' + (Number(a[0]) === Number(p.activity) ? " selected" : "") + '>' + a[1] + '</option>'; }).join("");
     function seg(name, opts, val) {
       return '<div class="seg" data-seg="' + name + '">' + opts.map(function (o) {
@@ -753,6 +1064,7 @@ window.addEventListener("error", function (e) {
       '</div>' +
       '<label class="f">Current weight (kg)<input type="number" name="weightKg" inputmode="decimal" min="30" max="300" step="0.1" value="' + esc(p.weightKg) + '" required></label>' +
       '<label class="f">How active are you?<select name="activity">' + act + '</select></label>' +
+      '<label class="f">Your daily work (for burned calories)<select name="work">' + work + '</select></label>' +
       '<label class="f">Goal' + seg("goal", [["lose", "Lose"], ["maintain", "Maintain"], ["gain", "Gain"]], p.goal) + '</label>' +
       '<label class="f" data-rate' + (p.goal === "maintain" ? " hidden" : "") + '>Pace' + seg("rate", [["0.25", "0.25 kg/week"], ["0.5", "0.5 kg/week"]], p.rate) + '</label>';
   }
@@ -775,7 +1087,7 @@ window.addEventListener("error", function (e) {
       '<div class="stat-row"><span class="muted">Protein / Carbs / Fat</span><b>' + t.protein + ' / ' + t.carbs + ' / ' + t.fat + ' g</b></div>' +
       '<div class="stat-row"><span class="muted">Maintenance estimate</span><b>' + t.tdee + ' kcal</b></div>' +
       (t.floorHit ? '<p class="note">Your target was raised to a safe minimum. Consider a slower pace.</p>' : "") +
-      '</div>' +
+      '</div>' + activityTargetBlock() +
       '<form class="stack" data-form="override" style="margin-top:12px"><label class="f">Custom calorie target (leave empty to use the estimate)' +
       '<input type="number" name="kcal" inputmode="numeric" min="1000" max="6000" step="10" value="' + (state.targetOverride || "") + '" placeholder="' + t.computed + '"></label>' +
       '<button class="ghost" type="submit">Save target</button></form></section>' +
@@ -793,6 +1105,18 @@ window.addEventListener("error", function (e) {
       '<button class="ghost danger" data-act="reset">Delete all data</button></div></section>' +
       '<p class="note" style="text-align:center">Food list: ' + BUILTIN.length + ' foods · version ' + foodsVersion + ' · updates automatically when online.</p>' +
       '<p class="note" style="text-align:center">Dish values are calculated from standard home-style recipes using ingredient data from USDA FoodData Central (public domain). Real portions and recipes vary.</p>';
+  }
+
+  function activityTargetBlock() {
+    var at = activityTarget();
+    if (!at) return '<p class="note">Log steps or exercise on the Today screen to get a target based on what you actually do.</p>';
+    return '<div class="stack small" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line)">' +
+      '<div class="stat-row"><span class="muted">From your logged activity (' + at.days + (at.days === 1 ? " day" : " days") + ')</span><b>' + at.kcal + ' kcal</b></div>' +
+      '<div class="stat-row"><span class="muted">Maintenance from activity</span><b>' + at.maint + ' kcal</b></div>' +
+      '<p class="note" style="margin:0">' + (at.cal ? "Corrected by your Reality check." : "Formula burn is trimmed by 10% because estimates usually run high; the Reality check in the Weight tab can replace this with your real numbers.") +
+      (at.floorHit ? " Raised to a safe minimum." : "") + '</p>' +
+      (at.days >= 3 ? '<button class="ghost" data-act="use-act-target" data-v="' + at.kcal + '">Use ' + at.kcal + ' kcal as my target</button>'
+        : '<p class="note" style="margin:0">Log activity on at least 3 days before using this; one heavy or lazy day skews it.</p>') + '</div>';
   }
 
   // ---------- Add-food sheet ----------
@@ -908,8 +1232,85 @@ window.addEventListener("error", function (e) {
 
   function mealName(k) { for (var i = 0; i < MEALS.length; i++) if (MEALS[i][0] === k) return MEALS[i][1]; return k; }
 
+  // ---------- Add / edit activity sheet ----------
+  function openAct(type, id) {
+    var x = null;
+    if (id) { x = actDay(ui.date, false).ex.filter(function (e) { return e.id === id; })[0]; if (!x) return; }
+    var v = x ? { km: x.km, min: x.min, inc: x.inc, int: x.int || "normal", sp: x.sp || SPORT[0][0], inSteps: x.inSteps }
+      : { km: null, min: type === "gym" ? 60 : type === "run" ? 20 : 30, inc: null, int: "normal", sp: SPORT[0][0], inSteps: true };
+    ui.sheet = { kind: "act", type: x ? x.t : type, edit: x ? x.id : null, v: v };
+    renderActSheet();
+  }
+  function draftSess() { var s = ui.sheet; return cleanSess(Object.assign({ id: s.edit || "draft", t: s.type }, s.v)); }
+  function actPreview() {
+    var x = draftSess();
+    if (!x) return "";
+    var r = calcSess(x, weightOn(ui.date), strideM());
+    var o = { x: x, r: r };
+    return '<div class="preview"><b>' + r0(r.kcal) + '</b> kcal' + (sessDetail(o) ? '<div class="small muted">' + esc(sessDetail(o)) + '</div>' : "") + '</div>' +
+      (r.warn ? '<p class="warn">' + esc(r.warn) + '</p>' : "");
+  }
+  function actField(label, name, v, attrs) {
+    return '<label class="f">' + label + '<input type="number" inputmode="decimal" data-av="' + name + '" value="' + (v === null || v === undefined ? "" : esc(v)) + '" ' + attrs + '></label>';
+  }
+  function renderActSheet() {
+    var s = ui.sheet, v = s.v, t = s.type, body = "";
+    var typeSeg = '<div class="seg">' + [["walk", "🚶 Walk"], ["run", "🏃 Run"], ["gym", "🏋️ Gym"], ["sport", "⚡ Other"]].map(function (m) {
+      return '<button type="button" data-act="act-type" data-type="' + m[0] + '" aria-pressed="' + (t === m[0]) + '">' + m[1] + '</button>';
+    }).join("") + '</div>';
+    if (t === "walk" || t === "run") {
+      body = '<div class="grid2">' + actField("Distance (km)", "km", v.km, 'min="0" max="100" step="0.01" placeholder="e.g. 3.2"') +
+        actField("Time (min)", "min", v.min, 'min="0" max="600" step="1" placeholder="e.g. 35"') + '</div>' +
+        actField("Incline % (treadmill, optional)", "inc", v.inc, 'min="0" max="30" step="0.5" placeholder="0"');
+    } else if (t === "gym") {
+      body = actField("Workout time (min)", "min", v.min, 'min="0" max="600" step="1"') +
+        '<label class="f">Intensity<select data-av="int">' + Object.keys(GYM).map(function (k) {
+          return '<option value="' + k + '"' + (v.int === k ? " selected" : "") + '>' + GYM[k][0] + '</option>';
+        }).join("") + '</select></label>';
+    } else {
+      body = '<label class="f">Activity<select data-av="sp">' + SPORT.map(function (sp) {
+        return '<option value="' + sp[0] + '"' + (v.sp === sp[0] ? " selected" : "") + '>' + sp[4] + " " + sp[1] + '</option>';
+      }).join("") + '</select></label>' + actField("Time (min)", "min", v.min, 'min="0" max="600" step="1"');
+    }
+    var stepsQ = t === "walk" || t === "run" || t === "gym" || (SPM[v.sp] && SPM[v.sp].spm > 0);
+    sheetRoot.innerHTML = '<div class="sheet-back" data-act="backdrop"><div class="sheet" role="dialog" aria-modal="true" aria-label="' + (s.edit ? "Edit" : "Add") + ' activity" data-mode="act">' +
+      '<div class="sheet-head"><div class="row"><h2>' + (s.edit ? "Edit activity" : "Add activity") + '</h2>' +
+      '<button class="iconbtn" data-act="close" aria-label="Close">×</button></div>' + (s.edit ? "" : typeSeg) + '</div>' +
+      '<div class="sheet-body"><form class="stack" data-form="act" style="margin-top:12px">' + body +
+      '<div id="act-preview">' + actPreview() + '</div>' +
+      (stepsQ ? '<label class="chk"><input type="checkbox" data-av="inSteps"' + (v.inSteps ? " checked" : "") + '> These steps are already in my watch / phone step total for the day (so they are not counted twice)</label>' : "") +
+      '<button class="primary" type="submit">' + (s.edit ? "Save" : "Add to " + esc(prettyDate(ui.date))) + '</button>' +
+      (s.edit ? '<button class="ghost danger" type="button" data-act="del-act" data-id="' + esc(s.edit) + '">Delete</button>' : "") +
+      '<p class="note">' + (t === "walk" || t === "run"
+        ? "Calories come from speed (distance ÷ time) and your weight. Split a walk-jog into one Walk and one Run for the best number."
+        : t === "gym" ? "Normal = usual sets with 1–2 min rests. Heavy = little rest, breathing hard most of the time."
+          : "Values are averages for a typical pace of each activity.") + '</p></form></div></div></div>';
+    document.body.style.overflow = "hidden";
+  }
+  function addSessions(list, toast_) {
+    var a = actDay(ui.date, true);
+    list.forEach(function (x) { var c = cleanSess(Object.assign({}, x, { id: uid() })); if (c) a.ex.push(c); });
+    save(); render(); toast(toast_);
+  }
+
+  // Re-rendering inside a "change" event would replace the button being tapped, and the tap would be lost.
+  // So the re-render waits until the press is over.
+  var ptrDown = false, pendRender = false;
+  function renderSoon() { pendRender = true; if (!ptrDown) setTimeout(flushRender, 0); }
+  function flushRender() {
+    if (!pendRender) return;
+    pendRender = false;
+    var id = document.activeElement && document.activeElement.id;
+    render();
+    if (id) { var el = document.getElementById(id); if (el) try { el.focus({ preventScroll: true }); } catch (e) { el.focus(); } }
+  }
+  document.addEventListener("pointerdown", function () { ptrDown = true; }, true);
+  document.addEventListener("pointerup", function () { ptrDown = false; setTimeout(flushRender, 0); }, true);
+  document.addEventListener("pointercancel", function () { ptrDown = false; setTimeout(flushRender, 0); }, true);
+
   function renderSheet() {
     var s = ui.sheet; if (!s) return;
+    if (s.kind === "act") { renderActSheet(); return; }
     var mealOpts = MEALS.map(function (m) { return '<option value="' + m[0] + '"' + (m[0] === s.meal ? " selected" : "") + '>' + m[1] + '</option>'; }).join("");
     var modeSeg = '<div class="seg" data-mode>' + [["search", "Search"], ["custom", "My food"], ["quick", "Quick kcal"]].map(function (m) {
       return '<button type="button" data-act="mode" data-mode="' + m[0] + '" aria-pressed="' + (s.mode === m[0]) + '">' + m[1] + '</button>';
@@ -990,6 +1391,39 @@ window.addEventListener("error", function (e) {
           save(); render();
         }
         break;
+      case "open-act": openAct(el.dataset.type || "walk"); break;
+      case "edit-act": openAct(null, el.dataset.id); break;
+      case "act-type":
+        if (s && s.kind === "act" && !s.edit) { s.type = el.dataset.type; if (!(s.v.min > 0)) s.v.min = s.type === "gym" ? 60 : 30; renderActSheet(); }
+        break;
+      case "del-act": {
+        var ad = actDay(ui.date, true), before = ad.ex.length;
+        ad.ex = ad.ex.filter(function (x) { return x.id !== el.dataset.id; });
+        if (ui.sheet) closeSheet();
+        if (ad.ex.length < before) { save(); render(); toast("Removed"); }
+        break;
+      }
+      case "act-routine":
+        if (state.routine.length) addSessions(state.routine, "Routine added");
+        break;
+      case "act-yesterday": {
+        var prev = actDay(shiftKey(ui.date, -1), false).ex;
+        if (prev.length) addSessions(prev, "Copied from the day before");
+        break;
+      }
+      case "act-save-routine": {
+        var cur = actDay(ui.date, false).ex;
+        if (cur.length) {
+          state.routine = cur.map(function (x) { var c = Object.assign({}, x); delete c.id; return c; });
+          save(); render(); toast("Saved as your routine (" + cur.length + ")");
+        }
+        break;
+      }
+      case "use-act-target": {
+        var tv = Number(el.dataset.v);
+        if (tv >= 1000 && tv <= 6000) { state.targetOverride = Math.round(tv); save(); render(); toast("Target set to " + Math.round(tv) + " kcal"); }
+        break;
+      }
       case "export": exportData(); break;
       case "import": document.getElementById("importFile").click(); break;
       case "reset":
@@ -1000,10 +1434,35 @@ window.addEventListener("error", function (e) {
     }
   });
 
+  function captureAct(el) {
+    var s = ui.sheet, k = el.dataset.av;
+    if (!s || s.kind !== "act" || !k) return false;
+    if (k === "inSteps") s.v.inSteps = el.checked;
+    else if (k === "int" || k === "sp") {
+      var old = s.v.sp; s.v[k] = el.value;
+      if (k === "sp" && (SPM[old] && SPM[old].spm > 0) !== (SPM[el.value] && SPM[el.value].spm > 0)) { renderActSheet(); return true; }
+    } else { var n = parseFloat(el.value); s.v[k] = isFinite(n) && n > 0 ? n : null; }
+    var pv = document.getElementById("act-preview"); if (pv) pv.innerHTML = actPreview();
+    return true;
+  }
   document.addEventListener("input", function (ev) {
-    if (ev.target.matches(".sheet input[type=search]") && ui.sheet) { ui.sheet.q = ev.target.value; renderSheet(); }
+    if (ev.target.matches(".sheet input[type=search]") && ui.sheet) { ui.sheet.q = ev.target.value; renderSheet(); return; }
+    if (ev.target.dataset && ev.target.dataset.av) captureAct(ev.target);
   });
   document.addEventListener("change", function (ev) {
+    var el = ev.target;
+    if (el.dataset && el.dataset.av) { captureAct(el); return; }
+    if (el.dataset && el.dataset.actfield && state.profile) {
+      var f = el.dataset.actfield, n = parseFloat(el.value), cap = f === "steps" ? 100000 : 10000;
+      var a = actDay(ui.date, true);
+      if (el.value === "" || !isFinite(n) || n <= 0) a[f] = null;
+      else if (n > cap) { toast(f === "steps" ? "Steps look too high (max 100000)." : "Watch kcal look too high (max 10000)."); el.value = a[f] || ""; return; }
+      else a[f] = Math.round(n);
+      save(); renderSoon(); return;
+    }
+    if (el.dataset && el.dataset.pref && (el.dataset.pref === "useWatch" || el.dataset.pref === "autoCal")) {
+      state[el.dataset.pref] = el.checked; save(); renderSoon(); return;
+    }
     if (ev.target.matches("[data-meal-select]") && ui.sheet) { ui.sheet.meal = ev.target.value; if (ui.sheet.pick) renderSheet(); }
     if (ev.target.id === "importFile" && ev.target.files[0]) importData(ev.target.files[0]);
   });
@@ -1019,7 +1478,8 @@ window.addEventListener("error", function (e) {
       var p = {
         sex: fd.get("sex") === "male" ? "male" : "female",
         age: num(fd.get("age")), heightCm: num(fd.get("heightCm")), weightKg: num(fd.get("weightKg")),
-        activity: num(fd.get("activity")), goal: String(fd.get("goal")), rate: num(fd.get("rate"))
+        activity: num(fd.get("activity")), goal: String(fd.get("goal")), rate: num(fd.get("rate")),
+        work: WORK[fd.get("work")] ? String(fd.get("work")) : "desk"
       };
       if (!(p.age >= 18 && p.age <= 100)) return toast("This calculator is for ages 18–100.");
       if (!(p.heightCm >= 120 && p.heightCm <= 230)) return toast("Enter height between 120 and 230 cm.");
@@ -1051,6 +1511,20 @@ window.addEventListener("error", function (e) {
       if (!cf.name || !cf.unit || !(cf.kcal >= 0)) return toast("Fill in name, serving and calories.");
       state.custom.push(cf); save();
       ui.sheet.mode = "search"; ui.sheet.pick = cf.id; ui.sheet.qty = 1; renderSheet();
+    } else if (kind === "act") {
+      var x = draftSess();
+      if (!x) return toast("Something is missing.");
+      if ((x.t === "walk" || x.t === "run") && !(x.km > 0) && !(x.min > 0)) return toast("Enter distance or time.");
+      if ((x.t === "gym" || x.t === "sport") && !(x.min > 0)) return toast("Enter the minutes.");
+      if (x.km > 100 || x.min > 600 || x.inc > 30) return toast("That looks too high. Check the numbers.");
+      var adn = actDay(ui.date, true);
+      if (ui.sheet.edit) {
+        var idx = -1; adn.ex.forEach(function (e, i) { if (e.id === ui.sheet.edit) idx = i; });
+        if (idx === -1) { closeSheet(); return; }
+        adn.ex[idx] = x;
+      } else { x.id = uid(); adn.ex.push(x); }
+      var edited = !!ui.sheet.edit;
+      save(); closeSheet(); render(); toast(edited ? "Saved" : r0(calcSess(x, weightOn(ui.date), strideM()).kcal) + " kcal added");
     } else if (kind === "quick") {
       var qk = num(fd.get("kcal"));
       if (!(qk > 0)) return toast("Enter calories.");
@@ -1084,7 +1558,7 @@ window.addEventListener("error", function (e) {
         var s = JSON.parse(reader.result);
         if (!valid(s) || !s.profile) throw new Error("bad");
         if (!confirm("Replace the data on this device with this backup?")) return;
-        state = Object.assign(blank(), s); save(); render(); toast("Backup restored");
+        state = cleanAct(Object.assign(blank(), s)); save(); render(); toast("Backup restored");
       } catch (e) { toast("That file isn't an Indi Calorie Counter backup."); }
     };
     reader.readAsText(file);
